@@ -7,7 +7,11 @@ import java.io.File;
 public class MainFrame extends JFrame {
 
     private final JTabbedPane tabs = new JTabbedPane();
-    private ProjectModel project = ProjectModel.newEmpty("Untitled", "Unknown");
+
+    private ProjectModel project = ProjectModel.newEmpty(
+            "Untitled", "Unknown", "Unnamed Product", ""
+    );
+
     private File currentFile = null;
 
     public MainFrame() {
@@ -79,23 +83,78 @@ public class MainFrame extends JFrame {
     }
 
     private void newProject() {
-        JTextField projectName = new JTextField("Untitled");
-        JTextField creator = new JTextField("Unknown");
+        JTextField productNameField = new JTextField(
+                (project != null && project.productName != null) ? project.productName : "Unnamed Product"
+        );
 
-        JPanel p = new JPanel(new GridLayout(0, 1, 6, 6));
-        p.add(new JLabel("Project Name:"));
-        p.add(projectName);
-        p.add(new JLabel("Creator Name:"));
-        p.add(creator);
+        JTextArea commentsArea = new JTextArea(4, 28);
+        commentsArea.setLineWrap(true);
+        commentsArea.setWrapStyleWord(true);
+        if (project != null && project.comments != null) {
+            commentsArea.setText(project.comments);
+        }
+
+        JTextField projectNameField = new JTextField("Untitled");
+        JTextField creatorField = new JTextField("Unknown");
+
+        JPanel form = new JPanel(new GridBagLayout());
+        GridBagConstraints g = new GridBagConstraints();
+        g.insets = new Insets(6, 6, 6, 6);
+        g.anchor = GridBagConstraints.WEST;
+
+        // Product Name
+        g.gridx = 0; g.gridy = 0; g.weightx = 0; g.fill = GridBagConstraints.NONE;
+        form.add(new JLabel("Product Name:"), g);
+
+        g.gridx = 1; g.gridy = 0; g.weightx = 1.0; g.fill = GridBagConstraints.HORIZONTAL;
+        form.add(productNameField, g);
+
+        // Comments (multi-line)
+        g.gridx = 0; g.gridy = 1; g.weightx = 0; g.fill = GridBagConstraints.NONE;
+        g.anchor = GridBagConstraints.NORTHWEST;
+        form.add(new JLabel("Comments:"), g);
+
+        g.gridx = 1; g.gridy = 1; g.weightx = 1.0; g.weighty = 1.0;
+        g.fill = GridBagConstraints.BOTH;
+        form.add(new JScrollPane(commentsArea), g);
+
+        // Reset for normal rows
+        g.weighty = 0.0;
+        g.anchor = GridBagConstraints.WEST;
+        g.fill = GridBagConstraints.HORIZONTAL;
+
+        // Project Name
+        g.gridx = 0; g.gridy = 2; g.weightx = 0;
+        form.add(new JLabel("Project Name:"), g);
+
+        g.gridx = 1; g.gridy = 2; g.weightx = 1.0;
+        form.add(projectNameField, g);
+
+        // Creator Name
+        g.gridx = 0; g.gridy = 3; g.weightx = 0;
+        form.add(new JLabel("Creator Name:"), g);
+
+        g.gridx = 1; g.gridy = 3; g.weightx = 1.0;
+        form.add(creatorField, g);
 
         int ok = JOptionPane.showConfirmDialog(
-                this, p, "New Project", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+                this,
+                form,
+                "New Project",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
 
         if (ok != JOptionPane.OK_OPTION) return;
 
-        project = ProjectModel.newEmpty(projectName.getText().trim(), creator.getText().trim());
-        currentFile = null;
+        project = ProjectModel.newEmpty(
+                projectNameField.getText().trim(),
+                creatorField.getText().trim(),
+                productNameField.getText().trim(),
+                commentsArea.getText()
+        );
 
+        currentFile = null;
         tabs.removeAll();
         refreshTitle();
     }
@@ -106,6 +165,7 @@ public class MainFrame extends JFrame {
 
         if (dlg.getSelectedLanguage() != null) {
             project.language = dlg.getSelectedLanguage();
+
             // update any open FP panels so labels refresh
             for (int i = 0; i < tabs.getTabCount(); i++) {
                 Component c = tabs.getComponentAt(i);
@@ -133,7 +193,7 @@ public class MainFrame extends JFrame {
     }
 
     private void saveProject() {
-        // capture fp state from selected fp panel if any
+        // capture fp state from any fp panel if present
         FunctionPointsPanel fpp = getAnyFpPanel();
         if (fpp != null) {
             project.fpState = fpp.exportState();
@@ -141,7 +201,9 @@ public class MainFrame extends JFrame {
 
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Save Project");
-        chooser.setSelectedFile(currentFile != null ? currentFile : new File(project.projectName + ".ms"));
+        chooser.setSelectedFile(
+                currentFile != null ? currentFile : new File(project.projectName + ".ms")
+        );
 
         int result = chooser.showSaveDialog(this);
         if (result != JFileChooser.APPROVE_OPTION) return;
@@ -157,7 +219,12 @@ public class MainFrame extends JFrame {
             currentFile = f;
             JOptionPane.showMessageDialog(this, "Saved: " + f.getAbsolutePath());
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Save failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Save failed: " + ex.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
         }
     }
 
@@ -177,11 +244,15 @@ public class MainFrame extends JFrame {
             tabs.removeAll();
             refreshTitle();
 
-            // On open, create an FP tab and populate it (as spec says)
             addFunctionPointsTab();
 
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Open failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Open failed: " + ex.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
         }
     }
 

@@ -8,62 +8,83 @@ public class VafDialog extends JDialog {
     private boolean ok = false;
     private final JComboBox<Integer>[] combos = new JComboBox[14];
 
-    // Generic labels (you can replace with the exact GSC names if your doc lists them)
-    private static final String[] FACTORS = {
-            "Data communications",
-            "Distributed data processing",
-            "Performance",
-            "Heavily used configuration",
-            "Transaction rate",
-            "Online data entry",
-            "End-user efficiency",
-            "Online update",
-            "Complex processing",
-            "Reusability",
-            "Installation ease",
-            "Operational ease",
-            "Multiple sites",
-            "Facilitate change"
+    private static final String[] QUESTIONS = {
+            "Does the system require reliable backup and recovery processes?",
+            "Are specialized data communications required to transfer information to or from the application?",
+            "Are there distributed processing functions?",
+            "Is performance critical?",
+            "Will the system run in an existing, heavily utilized operational environment?",
+            "Does the system require online data entry?",
+            "Does the online data entry require the input transaction to be built over multiple screens or operations?",
+            "Are the internal logical files updated online?",
+            "Are the input, output, files or inquiries complex?",
+            "Is the internal processing complex?",
+            "Is the code designed to be reusable?",
+            "Are conversion and installation included in the design?",
+            "Is the system designed for multiple installations in different organizations?",
+            "Is the application designed to facilitate change and for ease of use by the user?"
     };
 
     public VafDialog(JFrame owner, int[] currentValues) {
-        super(owner, "Value Adjustment Factors (0-5)", true);
-        setSize(520, 420);
+        super(owner, "Value Adjustment Factors", true);
+        setSize(980, 520);
         setLocationRelativeTo(owner);
+        setLayout(new BorderLayout(10, 10));
+
+        JPanel content = new JPanel(new BorderLayout(10, 10));
+        content.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
+
+        JLabel header = new JLabel(
+                "Assign a value from 0 to 5 for each of the following Value Adjustment Factors:"
+        );
+        content.add(header, BorderLayout.NORTH);
 
         JPanel grid = new JPanel(new GridBagLayout());
         GridBagConstraints g = new GridBagConstraints();
-        g.insets = new Insets(4,4,4,4);
+        g.insets = new Insets(6, 6, 6, 6);
         g.fill = GridBagConstraints.HORIZONTAL;
 
-        Integer[] values = {0,1,2,3,4,5};
+        Integer[] values = {0, 1, 2, 3, 4, 5};
 
-        for (int i = 0; i < 14; i++) {
+        for (int i = 0; i < QUESTIONS.length; i++) {
             g.gridy = i;
+
             g.gridx = 0;
             g.weightx = 1.0;
-            grid.add(new JLabel((i+1) + ". " + FACTORS[i]), g);
+            JLabel q = new JLabel(QUESTIONS[i]);
+            grid.add(q, g);
 
             g.gridx = 1;
             g.weightx = 0.0;
             JComboBox<Integer> cb = new JComboBox<>(values);
-            cb.setSelectedItem((currentValues != null && currentValues.length == 14) ? currentValues[i] : 0);
+            int initial = 0;
+            if (currentValues != null && currentValues.length == 14) {
+                initial = Math.max(0, Math.min(5, currentValues[i]));
+            }
+            cb.setSelectedItem(initial);
             combos[i] = cb;
             grid.add(cb, g);
         }
 
-        JButton okBtn = new JButton("OK");
+        JScrollPane scroll = new JScrollPane(grid);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        content.add(scroll, BorderLayout.CENTER);
+
+        JButton doneBtn = new JButton("Done");
         JButton cancelBtn = new JButton("Cancel");
-        okBtn.addActionListener(e -> { ok = true; dispose(); });
+
+        doneBtn.addActionListener(e -> {
+            ok = true;
+            dispose();
+        });
         cancelBtn.addActionListener(e -> dispose());
 
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        btns.add(cancelBtn);
-        btns.add(okBtn);
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
+        buttons.add(doneBtn);
+        buttons.add(cancelBtn);
 
-        setLayout(new BorderLayout(10,10));
-        add(new JScrollPane(grid), BorderLayout.CENTER);
-        add(btns, BorderLayout.SOUTH);
+        add(content, BorderLayout.CENTER);
+        add(buttons, BorderLayout.SOUTH);
     }
 
     public boolean isOk() {

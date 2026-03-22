@@ -270,14 +270,20 @@ public class FunctionPointsPanel extends JPanel {
     }
 
     private double locPerFp(String lang) {
-        // Simple common table. Adjust to match your class if needed.
+        // Basic common LOC/FP approximations.
         return switch (lang) {
-            case "Java" -> 53;
+            case "Assembler" -> 320;
+            case "Ada 95" -> 71;
+            case "C" -> 128;
             case "C++" -> 55;
             case "C#" -> 58;
-            case "Python" -> 21;
-            case "Ruby" -> 21;
-            case "Objective-C" -> 30;
+            case "COBOL" -> 80;
+            case "FORTRAN" -> 105;
+            case "HTML" -> 15;
+            case "Java" -> 53;
+            case "JavaScript" -> 47;
+            case "VBScript" -> 38;
+            case "Visual Basic" -> 50;
             default -> 50;
         };
     }
