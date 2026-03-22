@@ -5,23 +5,22 @@ import java.util.*;
 public class ProjectModel {
     public String projectName;
     public String creatorName;
-
     public String productName;
     public String comments;
 
-    public String language;
-    public FPState fpState;
+    public String language; // current global language (optional)
+
+    // MULTI-PANE support (required by step 28: both panes restored)
+    public List<FPPaneEntry> fpPanes = new ArrayList<>();
 
     public static ProjectModel newEmpty(String projectName, String creatorName, String productName, String comments) {
         ProjectModel m = new ProjectModel();
-        m.projectName = (projectName == null || projectName.isBlank()) ? "Untitled" : projectName;
-        m.creatorName = (creatorName == null || creatorName.isBlank()) ? "Unknown" : creatorName;
-
-        m.productName = (productName == null || productName.isBlank()) ? "Unnamed Product" : productName;
-        m.comments = (comments == null) ? "" : comments;
-
+        m.projectName = projectName;
+        m.creatorName = creatorName;
+        m.productName = productName;
+        m.comments = comments == null ? "" : comments;
         m.language = null;
-        m.fpState = null;
+        m.fpPanes = new ArrayList<>();
         return m;
     }
 
@@ -29,13 +28,15 @@ public class ProjectModel {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("projectName", projectName);
         root.put("creatorName", creatorName);
-
-        // NEW fields persisted
         root.put("productName", productName);
         root.put("comments", comments);
-
         root.put("language", language);
-        root.put("fpState", (fpState != null) ? fpState.toMap() : null);
+
+        List<Object> panes = new ArrayList<>();
+        for (FPPaneEntry p : fpPanes) {
+            panes.add(p.toMap());
+        }
+        root.put("fpPanes", panes);
 
         return JsonMini.stringify(root);
     }
@@ -54,43 +55,71 @@ public class ProjectModel {
 
         ProjectModel m = new ProjectModel();
 
-        Object pn = map.get("projectName");
-        m.projectName = (pn instanceof String s && !s.isBlank()) ? s : "Untitled";
+        m.projectName = (map.get("projectName") instanceof String s) ? s : "Untitled";
+        m.creatorName = (map.get("creatorName") instanceof String s) ? s : "";
+        m.productName = (map.get("productName") instanceof String s) ? s : "";
+        m.comments = (map.get("comments") instanceof String s) ? s : "";
+        m.language = (map.get("language") instanceof String s) ? s : null;
 
-        Object cn = map.get("creatorName");
-        m.creatorName = (cn instanceof String s && !s.isBlank()) ? s : "Unknown";
-
-        Object pr = map.get("productName");
-        m.productName = (pr instanceof String s && !s.isBlank()) ? s : "Unnamed Product";
-
-        Object cm = map.get("comments");
-        m.comments = (cm instanceof String s) ? s : "";
-
-        Object lang = map.get("language");
-        m.language = (lang instanceof String s && !s.isBlank()) ? s : null;
-
-        Object fps = map.get("fpState");
-        if (fps instanceof Map<?, ?> fpRaw) {
-            Map<String, Object> fpMap = new LinkedHashMap<>();
-            for (Map.Entry<?, ?> e : fpRaw.entrySet()) {
-                fpMap.put(String.valueOf(e.getKey()), e.getValue());
+        m.fpPanes = new ArrayList<>();
+        Object panesObj = map.get("fpPanes");
+        if (panesObj instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> paneRaw) {
+                    Map<String, Object> paneMap = new LinkedHashMap<>();
+                    for (Map.Entry<?, ?> e : paneRaw.entrySet()) {
+                        paneMap.put(String.valueOf(e.getKey()), e.getValue());
+                    }
+                    m.fpPanes.add(FPPaneEntry.fromMap(paneMap));
+                }
             }
-            m.fpState = FPState.fromMap(fpMap);
-        } else {
-            m.fpState = null;
         }
 
         return m;
     }
 
+    // ---------- FP Pane entry ----------
+    public static class FPPaneEntry {
+        public String tabName;
+        public FPState state;
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("tabName", tabName);
+            m.put("state", state != null ? state.toMap() : null);
+            return m;
+        }
+
+        @SuppressWarnings("unchecked")
+        public static FPPaneEntry fromMap(Map<String, Object> map) {
+            FPPaneEntry e = new FPPaneEntry();
+            e.tabName = (map.get("tabName") instanceof String s) ? s : "Function Points";
+
+            Object st = map.get("state");
+            if (st instanceof Map<?, ?> raw) {
+                Map<String, Object> sMap = new LinkedHashMap<>();
+                for (Map.Entry<?, ?> en : raw.entrySet()) {
+                    sMap.put(String.valueOf(en.getKey()), en.getValue());
+                }
+                e.state = FPState.fromMap(sMap);
+            } else {
+                e.state = new FPState();
+            }
+            return e;
+        }
+    }
+
+    // ---------- FP State ----------
     public static class FPState {
         public String language;
         public int[] counts = new int[5];
         public int[] complexities = new int[5]; // 0 simple, 1 avg, 2 complex
         public int[] vafValues = new int[14];
+
         public int totalWeighted;
         public int vafSum;
         public String fpFormatted;
+        public String codeSizeFormatted;
 
         public Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -101,6 +130,7 @@ public class ProjectModel {
             m.put("totalWeighted", totalWeighted);
             m.put("vafSum", vafSum);
             m.put("fpFormatted", fpFormatted);
+            m.put("codeSizeFormatted", codeSizeFormatted);
             return m;
         }
 
@@ -112,7 +142,8 @@ public class ProjectModel {
             s.vafValues = toIntArray(map.get("vafValues"), 14);
             s.totalWeighted = (map.get("totalWeighted") instanceof Number n) ? n.intValue() : 0;
             s.vafSum = (map.get("vafSum") instanceof Number n) ? n.intValue() : 0;
-            s.fpFormatted = (map.get("fpFormatted") instanceof String str) ? str : "0.0";
+            s.fpFormatted = (map.get("fpFormatted") instanceof String str) ? str : "";
+            s.codeSizeFormatted = (map.get("codeSizeFormatted") instanceof String str) ? str : "";
             return s;
         }
 
