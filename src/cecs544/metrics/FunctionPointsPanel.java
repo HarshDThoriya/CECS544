@@ -1,7 +1,7 @@
 package cecs544.metrics;
 
 import javax.swing.*;
-import javax.swing.border.TitledBorder;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.text.DecimalFormat;
 import java.util.function.Consumer;
@@ -16,30 +16,30 @@ public class FunctionPointsPanel extends JPanel {
             "External Interface Files"
     };
 
-    // Standard IFPUG weights (common defaults)
-    // You can adjust if your class uses different weights.
+    // Weights shown in your screenshot (IFPUG standard)
+    // Simple / Average / Complex
     private static final int[][] WEIGHTS = {
-            // Simple, Average, Complex
-            {3, 4, 6},   // External Inputs
-            {4, 5, 7},   // External Outputs
-            {3, 4, 6},   // External Inquiries
-            {7, 10, 15}, // Internal Logical Files
-            {5, 7, 10}   // External Interface Files
+            {3, 4, 6},    // External Inputs
+            {4, 5, 7},    // External Outputs
+            {3, 4, 6},    // External Inquiries
+            {7, 10, 15},  // Internal Logical Files
+            {5, 7, 10}    // External Interface Files
     };
 
     private final JTextField[] countFields = new JTextField[5];
-    private final ButtonGroup[] complexityGroups = new ButtonGroup[5];
-    private final JLabel[] weightedLabels = new JLabel[5];
+    private final JTextField[] weightedFields = new JTextField[5];
+    private final ButtonGroup[] groups = new ButtonGroup[5];
 
-    private final JLabel totalCountLabel = new JLabel("0");
-    private final JLabel vafSumLabel = new JLabel("0");
-    private final JTextField fpOutput = new JTextField("0.0");
+    private final JTextField totalCountField = roField(8);
+    private final JTextField fpField = roField(12);
+    private final JTextField vafSumField = roField(4);
+    private final JTextField currentLanguageField = roField(10);
+    private final JTextField codeSizeField = roField(14);
 
-    private final JLabel currentLanguageLabel = new JLabel("None");
-    private final JTextField codeSizeOutput = new JTextField("");
+    private int[] vafValues = new int[14];
 
-    private int[] vafValues = new int[14]; // 14 GSCs (0..5), typical FP VAF scheme
     private final DecimalFormat fpFmt = new DecimalFormat("#,##0.0");
+    private final DecimalFormat locFmt = new DecimalFormat("#,##0");
 
     private final JFrame owner;
     private final Consumer<ProjectModel.FPState> onStateChanged;
@@ -48,131 +48,159 @@ public class FunctionPointsPanel extends JPanel {
         this.owner = owner;
         this.onStateChanged = onStateChanged;
 
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout());
+        setBorder(new EmptyBorder(14, 18, 14, 18));
 
-        // Top info strip
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        top.add(new JLabel("Current Language:"));
-        currentLanguageLabel.setText(currentLanguage == null ? "None" : currentLanguage);
-        top.add(currentLanguageLabel);
+        currentLanguageField.setText((currentLanguage == null || currentLanguage.isBlank()) ? "" : currentLanguage);
 
-        add(top, BorderLayout.NORTH);
+        add(buildCenterUI(), BorderLayout.CENTER);
 
-        // Center: FP input grid
-        add(buildFpGrid(), BorderLayout.CENTER);
-
-        // Right: actions panel
-        add(buildActionsPanel(), BorderLayout.EAST);
-
-        fpOutput.setEditable(false);
-        codeSizeOutput.setEditable(false);
-
-        // compute once
         recalcAndUpdate();
     }
 
-    private JComponent buildFpGrid() {
-        JPanel panel = new JPanel(new BorderLayout(8, 8));
-        panel.setBorder(new TitledBorder("Function Point Inputs"));
-
-        JPanel grid = new JPanel(new GridBagLayout());
+    private JComponent buildCenterUI() {
+        JPanel root = new JPanel(new GridBagLayout());
         GridBagConstraints g = new GridBagConstraints();
-        g.insets = new Insets(4, 4, 4, 4);
-        g.fill = GridBagConstraints.HORIZONTAL;
+        g.insets = new Insets(6, 6, 6, 6);
+        g.anchor = GridBagConstraints.WEST;
 
-        // header row
+        // --- Header: "Weighting Factors"
+        JLabel header = new JLabel("Weighting Factors");
+        header.setFont(header.getFont().deriveFont(Font.BOLD, header.getFont().getSize() + 2f));
+
+        g.gridx = 0;
         g.gridy = 0;
-        g.gridx = 0; grid.add(new JLabel("Item"), g);
-        g.gridx = 1; grid.add(new JLabel("Count"), g);
-        g.gridx = 2; grid.add(new JLabel("Complexity"), g);
-        g.gridx = 3; grid.add(new JLabel("Weighted"), g);
+        g.gridwidth = 6;
+        g.anchor = GridBagConstraints.CENTER;
+        root.add(header, g);
+
+        // --- Column headers: Simple Average Complex
+        g.gridy = 1;
+        g.gridwidth = 1;
+        g.anchor = GridBagConstraints.CENTER;
+
+        g.gridx = 2; root.add(new JLabel("Simple"), g);
+        g.gridx = 3; root.add(new JLabel("Average"), g);
+        g.gridx = 4; root.add(new JLabel("Complex"), g);
+
+        // --- Rows
+        g.anchor = GridBagConstraints.WEST;
 
         for (int i = 0; i < FP_ITEMS.length; i++) {
-            int row = i + 1;
-            g.gridy = row;
+            int row = i + 2;
 
-            g.gridx = 0;
-            grid.add(new JLabel(FP_ITEMS[i]), g);
+            // Label
+            g.gridx = 0; g.gridy = row;
+            root.add(new JLabel(FP_ITEMS[i]), g);
 
+            // Count field
             g.gridx = 1;
-            JTextField tf = new JTextField("0", 6);
-            countFields[i] = tf;
-            grid.add(tf, g);
+            JTextField count = new JTextField("0", 6);
+            countFields[i] = count;
+            root.add(count, g);
 
-            g.gridx = 2;
-            JPanel radios = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-            JRadioButton simple = new JRadioButton("Simple");
-            JRadioButton avg = new JRadioButton("Average");
-            JRadioButton complex = new JRadioButton("Complex");
-            ButtonGroup bg = new ButtonGroup();
-            bg.add(simple); bg.add(avg); bg.add(complex);
-            complexityGroups[i] = bg;
+            // Radio buttons with weight numbers under Simple/Average/Complex
+            groups[i] = new ButtonGroup();
+
+            JRadioButton simple = new JRadioButton(String.valueOf(WEIGHTS[i][0]));
+            JRadioButton avg = new JRadioButton(String.valueOf(WEIGHTS[i][1]));
+            JRadioButton complex = new JRadioButton(String.valueOf(WEIGHTS[i][2]));
+
+            groups[i].add(simple);
+            groups[i].add(avg);
+            groups[i].add(complex);
+
             avg.setSelected(true); // default Average
-            radios.add(simple); radios.add(avg); radios.add(complex);
-            grid.add(radios, g);
 
-            g.gridx = 3;
-            JLabel w = new JLabel("0");
-            weightedLabels[i] = w;
-            grid.add(w, g);
+            g.anchor = GridBagConstraints.CENTER;
+            g.gridx = 2; root.add(simple, g);
+            g.gridx = 3; root.add(avg, g);
+            g.gridx = 4; root.add(complex, g);
+            g.anchor = GridBagConstraints.WEST;
 
-            // listeners
-            tf.getDocument().addDocumentListener((SimpleDocListener) e -> recalcAndUpdate());
+            // Weighted output field (right side)
+            g.gridx = 5;
+            JTextField weighted = roField(8);
+            weightedFields[i] = weighted;
+            root.add(weighted, g);
+
+            // Listeners
+            count.getDocument().addDocumentListener((SimpleDocListener) e -> recalcAndUpdate());
             simple.addActionListener(e -> recalcAndUpdate());
             avg.addActionListener(e -> recalcAndUpdate());
             complex.addActionListener(e -> recalcAndUpdate());
         }
 
-        // totals row
-        JPanel totals = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        totals.add(new JLabel("Total Count:"));
-        totals.add(totalCountLabel);
-        totals.add(Box.createHorizontalStrut(16));
-        totals.add(new JLabel("VAF Sum:"));
-        totals.add(vafSumLabel);
-        totals.add(Box.createHorizontalStrut(16));
-        totals.add(new JLabel("Function Points:"));
-        fpOutput.setColumns(10);
-        totals.add(fpOutput);
+        // --- Total Count row
+        int totalRow = FP_ITEMS.length + 2;
+        g.gridx = 0; g.gridy = totalRow;
+        root.add(new JLabel("Total Count"), g);
 
-        panel.add(grid, BorderLayout.CENTER);
-        panel.add(totals, BorderLayout.SOUTH);
+        g.gridx = 5;
+        root.add(totalCountField, g);
 
-        return panel;
+        // --- Buttons (left column) + outputs (right column) like screenshot
+        int buttonStartRow = totalRow + 1;
+
+        JButton computeFpBtn = new JButton("Compute FP");
+        JButton vafBtn = new JButton("Value Adjustments");
+        JButton computeCodeBtn = new JButton("Compute Code Size");
+        JButton changeLangBtn = new JButton("Change Language");
+
+        computeFpBtn.addActionListener(e -> recalcAndUpdate());
+        vafBtn.addActionListener(e -> openVafDialog());
+        computeCodeBtn.addActionListener(e -> computeCodeSize());
+        changeLangBtn.addActionListener(e -> openLanguageDialog());
+
+        // Buttons stacked on left
+        g.gridx = 0; g.gridy = buttonStartRow;
+        g.gridwidth = 2;
+        g.fill = GridBagConstraints.HORIZONTAL;
+        root.add(computeFpBtn, g);
+
+        g.gridy = buttonStartRow + 1;
+        root.add(vafBtn, g);
+
+        g.gridy = buttonStartRow + 2;
+        root.add(computeCodeBtn, g);
+
+        g.gridy = buttonStartRow + 3;
+        root.add(changeLangBtn, g);
+
+        g.gridwidth = 1;
+        g.fill = GridBagConstraints.NONE;
+
+        // Right-side result fields (stacked-ish)
+        // FP (top right)
+        g.gridx = 5; g.gridy = buttonStartRow;
+        root.add(fpField, g);
+
+        // VAF sum (below FP)
+        g.gridy = buttonStartRow + 1;
+        root.add(vafSumField, g);
+
+        // Code size (below VAF)
+        g.gridy = buttonStartRow + 2;
+        root.add(codeSizeField, g);
+
+        // Current Language centered bottom-ish
+        g.anchor = GridBagConstraints.EAST;
+        g.gridx = 3; g.gridy = buttonStartRow + 2;
+        root.add(new JLabel("Current Language"), g);
+
+        g.anchor = GridBagConstraints.WEST;
+        g.gridx = 4;
+        root.add(currentLanguageField, g);
+
+        return root;
     }
 
-    private JComponent buildActionsPanel() {
-        JPanel p = new JPanel();
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        p.setBorder(new TitledBorder("Actions"));
-
-        JButton vafBtn = new JButton("VAF...");
-        JButton langBtn = new JButton("Change Language...");
-        JButton computeFpBtn = new JButton("Compute FP");
-        JButton computeCodeBtn = new JButton("Compute Code Size");
-
-        p.add(vafBtn);
-        p.add(Box.createVerticalStrut(8));
-        p.add(langBtn);
-        p.add(Box.createVerticalStrut(8));
-        p.add(computeFpBtn);
-        p.add(Box.createVerticalStrut(8));
-        p.add(computeCodeBtn);
-        p.add(Box.createVerticalStrut(12));
-
-        JPanel codePanel = new JPanel(new BorderLayout(4, 4));
-        codePanel.setBorder(new TitledBorder("Code Size"));
-        codePanel.add(codeSizeOutput, BorderLayout.CENTER);
-
-        p.add(codePanel);
-
-        vafBtn.addActionListener(e -> openVafDialog());
-        langBtn.addActionListener(e -> openLanguageDialog());
-        computeFpBtn.addActionListener(e -> recalcAndUpdate());
-        computeCodeBtn.addActionListener(e -> computeCodeSize());
-
-        return p;
+    private static JTextField roField(int cols) {
+        JTextField tf = new JTextField("", cols);
+        tf.setEditable(false);
+        tf.setEnabled(false); // gives the greyed look like the screenshot
+        tf.setDisabledTextColor(Color.DARK_GRAY);
+        return tf;
     }
 
     private void openVafDialog() {
@@ -186,8 +214,9 @@ public class FunctionPointsPanel extends JPanel {
     }
 
     private void openLanguageDialog() {
-        LanguageDialog dlg = new LanguageDialog(owner, currentLanguageLabel.getText());
+        LanguageDialog dlg = new LanguageDialog(owner, currentLanguageField.getText());
         dlg.setVisible(true);
+
         if (dlg.getSelectedLanguage() != null) {
             setCurrentLanguage(dlg.getSelectedLanguage());
             recalcAndUpdate();
@@ -195,23 +224,22 @@ public class FunctionPointsPanel extends JPanel {
     }
 
     public void setCurrentLanguage(String lang) {
-        currentLanguageLabel.setText(lang == null ? "None" : lang);
+        currentLanguageField.setText((lang == null) ? "" : lang);
     }
 
     private int getSelectedComplexityIndex(ButtonGroup bg) {
-        // order: Simple, Average, Complex
-        // We find which radio is selected by iterating buttons in insertion order.
+        // 0=Simple,1=Average,2=Complex (buttons were added in that order)
         int idx = 0;
         for (var e = bg.getElements(); e.hasMoreElements(); ) {
             AbstractButton b = e.nextElement();
             if (b.isSelected()) return idx;
             idx++;
         }
-        return 1; // fallback average
+        return 1;
     }
 
     private int parseNonNegativeInt(String s) {
-        s = s.trim();
+        s = (s == null) ? "" : s.trim();
         if (s.isEmpty()) return 0;
         int v = Integer.parseInt(s);
         return Math.max(v, 0);
@@ -227,50 +255,54 @@ public class FunctionPointsPanel extends JPanel {
             } catch (Exception ex) {
                 count = 0;
             }
-            int cx = getSelectedComplexityIndex(complexityGroups[i]); // 0/1/2
+            int cx = getSelectedComplexityIndex(groups[i]); // 0/1/2
             int weighted = count * WEIGHTS[i][cx];
-            weightedLabels[i].setText(String.valueOf(weighted));
+            weightedFields[i].setText(String.valueOf(weighted));
             totalWeighted += weighted;
         }
 
         int vafSum = 0;
         for (int v : vafValues) vafSum += v;
 
-        totalCountLabel.setText(String.valueOf(totalWeighted));
-        vafSumLabel.setText(String.valueOf(vafSum));
+        totalCountField.setText(String.valueOf(totalWeighted));
+        vafSumField.setText(String.valueOf(vafSum));
 
-        // Standard FP adjustment formula: FP = UFP * (0.65 + 0.01*VAFsum)
+        // FP = UFP * (0.65 + 0.01*VAFsum)
         double fp = totalWeighted * (0.65 + 0.01 * vafSum);
+        fpField.setText(fpFmt.format(fp));
 
-        fpOutput.setText(fpFmt.format(fp));
-
-        // notify model
-        if (onStateChanged != null) {
-            onStateChanged.accept(exportState());
+        // clear code size display until user clicks compute code size (like typical UI)
+        // but keep it if it was already computed
+        if (codeSizeField.getText() == null || codeSizeField.getText().isBlank()) {
+            // leave blank
         }
+
+        if (onStateChanged != null) onStateChanged.accept(exportState());
     }
 
     private void computeCodeSize() {
-        double fp;
-        try {
-            fp = fpFmt.parse(fpOutput.getText()).doubleValue();
-        } catch (Exception ex) {
-            fp = 0;
-        }
-
-        String lang = currentLanguageLabel.getText();
-        if (lang == null || lang.equals("None") || lang.isBlank()) {
+        String lang = currentLanguageField.getText();
+        if (lang == null || lang.isBlank()) {
             JOptionPane.showMessageDialog(owner, "Please select a language first.", "Language Required", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
+        double fp;
+        try {
+            fp = fpFmt.parse(fpField.getText()).doubleValue();
+        } catch (Exception ex) {
+            fp = 0;
+        }
+
         double locPerFp = locPerFp(lang);
         double loc = fp * locPerFp;
-        codeSizeOutput.setText(String.format("%,.0f LOC (%.0f LOC/FP)", loc, locPerFp));
+
+        codeSizeField.setText(locFmt.format(loc));
+        if (onStateChanged != null) onStateChanged.accept(exportState());
     }
 
     private double locPerFp(String lang) {
-        // Basic common LOC/FP approximations.
+        // Basic approximations (adjust if your class provides an official table)
         return switch (lang) {
             case "Assembler" -> 320;
             case "Ada 95" -> 71;
@@ -291,7 +323,7 @@ public class FunctionPointsPanel extends JPanel {
     // ----- Save/load state -----
     public ProjectModel.FPState exportState() {
         ProjectModel.FPState s = new ProjectModel.FPState();
-        s.language = currentLanguageLabel.getText();
+        s.language = currentLanguageField.getText();
 
         s.counts = new int[5];
         s.complexities = new int[5];
@@ -301,30 +333,39 @@ public class FunctionPointsPanel extends JPanel {
             } catch (Exception ex) {
                 s.counts[i] = 0;
             }
-            s.complexities[i] = getSelectedComplexityIndex(complexityGroups[i]);
+            s.complexities[i] = getSelectedComplexityIndex(groups[i]);
         }
 
         s.vafValues = vafValues.clone();
-        s.totalWeighted = Integer.parseInt(totalCountLabel.getText());
-        s.vafSum = Integer.parseInt(vafSumLabel.getText());
-        s.fpFormatted = fpOutput.getText();
+
+        // computed displays
+        try { s.totalWeighted = Integer.parseInt(totalCountField.getText().trim()); } catch (Exception ex) { s.totalWeighted = 0; }
+        try { s.vafSum = Integer.parseInt(vafSumField.getText().trim()); } catch (Exception ex) { s.vafSum = 0; }
+        s.fpFormatted = fpField.getText();
+
         return s;
     }
 
     public void loadFromState(ProjectModel.FPState s) {
         if (s == null) return;
+
         setCurrentLanguage(s.language);
 
         for (int i = 0; i < 5; i++) {
             countFields[i].setText(String.valueOf(s.counts[i]));
-            setComplexitySelection(complexityGroups[i], s.complexities[i]);
+            setComplexitySelection(groups[i], s.complexities[i]);
         }
 
         if (s.vafValues != null && s.vafValues.length == 14) {
             vafValues = s.vafValues.clone();
         }
 
+        // Recalc to refresh UI fields
         recalcAndUpdate();
+
+        // Restore code size if it was previously computed (optional)
+        // If you want it to persist, compute it on load when language exists:
+        // computeCodeSize();
     }
 
     private void setComplexitySelection(ButtonGroup bg, int idx) {
@@ -339,7 +380,7 @@ public class FunctionPointsPanel extends JPanel {
         }
     }
 
-    // small helper interface for doc listener
+    // Document listener helper
     @FunctionalInterface
     interface SimpleDocListener extends javax.swing.event.DocumentListener {
         void update(javax.swing.event.DocumentEvent e);
