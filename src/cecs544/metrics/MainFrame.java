@@ -3,15 +3,13 @@ package cecs544.metrics;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainFrame extends JFrame {
 
     private final JTabbedPane tabs = new JTabbedPane();
-
-    private ProjectModel project = ProjectModel.newEmpty(
-            "Untitled", "Unknown", "Unnamed Product", ""
-    );
-
+    private ProjectModel project = ProjectModel.newEmpty("Untitled", "", "", "");
     private File currentFile = null;
 
     public MainFrame() {
@@ -29,7 +27,6 @@ public class MainFrame extends JFrame {
     private JMenuBar buildMenuBar() {
         JMenuBar bar = new JMenuBar();
 
-        // File
         JMenu file = new JMenu("File");
         JMenuItem mNew = new JMenuItem("New");
         JMenuItem mOpen = new JMenuItem("Open");
@@ -47,27 +44,23 @@ public class MainFrame extends JFrame {
         file.addSeparator();
         file.add(mExit);
 
-        // Edit (placeholder)
         JMenu edit = new JMenu("Edit");
-        edit.add(new JMenuItem("(not used in Iteration 1)"));
+        edit.add(new JMenuItem("NOSE"));
 
-        // Preferences
         JMenu prefs = new JMenu("Preferences");
-        JMenuItem mLang = new JMenuItem("Language");
+        JMenuItem mLang = new JMenuItem("Languages");
         mLang.addActionListener(e -> chooseLanguage());
         prefs.add(mLang);
 
-        // Metrics
         JMenu metrics = new JMenu("Metrics");
         JMenu fp = new JMenu("Function Points");
         JMenuItem enterFp = new JMenuItem("Enter FP Data");
-        enterFp.addActionListener(e -> addFunctionPointsTab());
+        enterFp.addActionListener(e -> addFunctionPointsTabAskName());
         fp.add(enterFp);
         metrics.add(fp);
 
-        // Help (placeholder)
         JMenu help = new JMenu("Help");
-        help.add(new JMenuItem("(not used in Iteration 1)"));
+        help.add(new JMenuItem("NOSE"));
 
         bar.add(file);
         bar.add(edit);
@@ -82,83 +75,81 @@ public class MainFrame extends JFrame {
         setTitle("CECS 544 Metrics Suite - " + project.projectName);
     }
 
+    // ---------- New Project (required fields) ----------
     private void newProject() {
-        JTextField productNameField = new JTextField(
-                (project != null && project.productName != null) ? project.productName : "Unnamed Product"
-        );
+        JTextField projectNameField = new JTextField(project.projectName == null ? "" : project.projectName);
+        JTextField productNameField = new JTextField(project.productName == null ? "" : project.productName);
+        JTextField creatorField = new JTextField(project.creatorName == null ? "" : project.creatorName);
 
         JTextArea commentsArea = new JTextArea(4, 28);
         commentsArea.setLineWrap(true);
         commentsArea.setWrapStyleWord(true);
-        if (project != null && project.comments != null) {
-            commentsArea.setText(project.comments);
-        }
-
-        JTextField projectNameField = new JTextField("Untitled");
-        JTextField creatorField = new JTextField("Unknown");
+        commentsArea.setText(project.comments == null ? "" : project.comments);
 
         JPanel form = new JPanel(new GridBagLayout());
         GridBagConstraints g = new GridBagConstraints();
         g.insets = new Insets(6, 6, 6, 6);
         g.anchor = GridBagConstraints.WEST;
 
-        // Product Name
-        g.gridx = 0; g.gridy = 0; g.weightx = 0; g.fill = GridBagConstraints.NONE;
-        form.add(new JLabel("Product Name:"), g);
-
-        g.gridx = 1; g.gridy = 0; g.weightx = 1.0; g.fill = GridBagConstraints.HORIZONTAL;
-        form.add(productNameField, g);
-
-        // Comments (multi-line)
-        g.gridx = 0; g.gridy = 1; g.weightx = 0; g.fill = GridBagConstraints.NONE;
-        g.anchor = GridBagConstraints.NORTHWEST;
-        form.add(new JLabel("Comments:"), g);
-
-        g.gridx = 1; g.gridy = 1; g.weightx = 1.0; g.weighty = 1.0;
-        g.fill = GridBagConstraints.BOTH;
-        form.add(new JScrollPane(commentsArea), g);
-
-        // Reset for normal rows
-        g.weighty = 0.0;
-        g.anchor = GridBagConstraints.WEST;
-        g.fill = GridBagConstraints.HORIZONTAL;
-
         // Project Name
-        g.gridx = 0; g.gridy = 2; g.weightx = 0;
-        form.add(new JLabel("Project Name:"), g);
-
-        g.gridx = 1; g.gridy = 2; g.weightx = 1.0;
+        g.gridx = 0; g.gridy = 0; form.add(new JLabel("Project Name:"), g);
+        g.gridx = 1; g.fill = GridBagConstraints.HORIZONTAL; g.weightx = 1.0;
         form.add(projectNameField, g);
 
-        // Creator Name
-        g.gridx = 0; g.gridy = 3; g.weightx = 0;
-        form.add(new JLabel("Creator Name:"), g);
+        // Product Name
+        g.gridx = 0; g.gridy = 1; g.fill = GridBagConstraints.NONE; g.weightx = 0;
+        form.add(new JLabel("Product Name:"), g);
+        g.gridx = 1; g.fill = GridBagConstraints.HORIZONTAL; g.weightx = 1.0;
+        form.add(productNameField, g);
 
-        g.gridx = 1; g.gridy = 3; g.weightx = 1.0;
+        // Creator
+        g.gridx = 0; g.gridy = 2; g.fill = GridBagConstraints.NONE; g.weightx = 0;
+        form.add(new JLabel("Creator:"), g);
+        g.gridx = 1; g.fill = GridBagConstraints.HORIZONTAL; g.weightx = 1.0;
         form.add(creatorField, g);
 
-        int ok = JOptionPane.showConfirmDialog(
-                this,
-                form,
-                "New Project",
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE
-        );
+        // Comments
+        g.gridx = 0; g.gridy = 3; g.fill = GridBagConstraints.NONE; g.weightx = 0;
+        g.anchor = GridBagConstraints.NORTHWEST;
+        form.add(new JLabel("Comments:"), g);
+        g.gridx = 1; g.fill = GridBagConstraints.BOTH; g.weightx = 1.0; g.weighty = 1.0;
+        form.add(new JScrollPane(commentsArea), g);
 
-        if (ok != JOptionPane.OK_OPTION) return;
+        while (true) {
+            int ok = JOptionPane.showConfirmDialog(
+                    this, form, "New Project",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
-        project = ProjectModel.newEmpty(
-                projectNameField.getText().trim(),
-                creatorField.getText().trim(),
-                productNameField.getText().trim(),
-                commentsArea.getText()
-        );
+            if (ok != JOptionPane.OK_OPTION) return;
 
-        currentFile = null;
-        tabs.removeAll();
-        refreshTitle();
+            String pn = projectNameField.getText().trim();
+            String pr = productNameField.getText().trim();
+            String cr = creatorField.getText().trim();
+
+            // REQUIRED fields per your request + self-eval behavior (step 6)
+            if (pn.isBlank() || pr.isBlank() || cr.isBlank()) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Missing required input.\n\nRequired: Project Name, Product Name, Creator.",
+                        "Required Fields",
+                        JOptionPane.ERROR_MESSAGE
+                );
+                // loop again (keeps dialog contents)
+                continue;
+            }
+
+            project = ProjectModel.newEmpty(pn, cr, pr, commentsArea.getText());
+            project.language = project.language; // keep global language if you want (optional)
+            project.fpPanes = new ArrayList<>();
+
+            currentFile = null;
+            tabs.removeAll();
+            refreshTitle();
+            return;
+        }
     }
 
+    // ---------- Language ----------
     private void chooseLanguage() {
         LanguageDialog dlg = new LanguageDialog(this, project.language);
         dlg.setVisible(true);
@@ -166,7 +157,7 @@ public class MainFrame extends JFrame {
         if (dlg.getSelectedLanguage() != null) {
             project.language = dlg.getSelectedLanguage();
 
-            // update any open FP panels so labels refresh
+            // update open FP tabs so "Current Language" shows it
             for (int i = 0; i < tabs.getTabCount(); i++) {
                 Component c = tabs.getComponentAt(i);
                 if (c instanceof FunctionPointsPanel fpp) {
@@ -176,34 +167,60 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void addFunctionPointsTab() {
+    // ---------- Add FP tab (ask for name) ----------
+    private void addFunctionPointsTabAskName() {
+        String name = JOptionPane.showInputDialog(
+                this,
+                "Name the panel:",
+                "Enter FP Data",
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (name == null) return; // cancel
+        name = name.trim();
+        if (name.isBlank()) {
+            JOptionPane.showMessageDialog(this, "Panel name is required.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        addFunctionPointsTab(name, null);
+    }
+
+    private void addFunctionPointsTab(String tabName, ProjectModel.FPState stateOrNull) {
         FunctionPointsPanel panel = new FunctionPointsPanel(
                 this,
                 project.language,
-                (fpState) -> project.fpState = fpState // callback to keep model updated
+                (ignored) -> { /* we save from tabs on File->Save */ }
         );
 
-        // if project already has fpState (from open), push it into the new panel
-        if (project.fpState != null) {
-            panel.loadFromState(project.fpState);
+        if (stateOrNull != null) {
+            panel.loadFromState(stateOrNull);
+        } else {
+            // default should be blank input boxes + average weights (self-eval step 11a)
+            panel.resetToBlankDefaults(project.language);
         }
 
-        tabs.addTab("Function Points", panel);
+        tabs.addTab(tabName, panel);
         tabs.setSelectedComponent(panel);
     }
 
+    // ---------- Save/Open ----------
     private void saveProject() {
-        // capture fp state from any fp panel if present
-        FunctionPointsPanel fpp = getAnyFpPanel();
-        if (fpp != null) {
-            project.fpState = fpp.exportState();
+        // build fpPanes list from current tabs
+        project.fpPanes = new ArrayList<>();
+        for (int i = 0; i < tabs.getTabCount(); i++) {
+            Component c = tabs.getComponentAt(i);
+            if (c instanceof FunctionPointsPanel fpp) {
+                ProjectModel.FPPaneEntry entry = new ProjectModel.FPPaneEntry();
+                entry.tabName = tabs.getTitleAt(i);
+                entry.state = fpp.exportState();
+                project.fpPanes.add(entry);
+            }
         }
 
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Save Project");
-        chooser.setSelectedFile(
-                currentFile != null ? currentFile : new File(project.projectName + ".ms")
-        );
+        chooser.setSelectedFile(currentFile != null ? currentFile : new File(project.projectName + ".ms"));
 
         int result = chooser.showSaveDialog(this);
         if (result != JFileChooser.APPROVE_OPTION) return;
@@ -219,12 +236,7 @@ public class MainFrame extends JFrame {
             currentFile = f;
             JOptionPane.showMessageDialog(this, "Saved: " + f.getAbsolutePath());
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Save failed: " + ex.getMessage(),
-                    "Error",
-                    JOptionPane.ERROR_MESSAGE
-            );
+            JOptionPane.showMessageDialog(this, "Save failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -244,23 +256,15 @@ public class MainFrame extends JFrame {
             tabs.removeAll();
             refreshTitle();
 
-            addFunctionPointsTab();
+            // restore all FP panes (self-eval step 28)
+            if (project.fpPanes != null) {
+                for (ProjectModel.FPPaneEntry e : project.fpPanes) {
+                    addFunctionPointsTab(e.tabName, e.state);
+                }
+            }
 
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Open failed: " + ex.getMessage(),
-                    "Error",
-                    JOptionPane.ERROR_MESSAGE
-            );
+            JOptionPane.showMessageDialog(this, "Open failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
-    }
-
-    private FunctionPointsPanel getAnyFpPanel() {
-        for (int i = 0; i < tabs.getTabCount(); i++) {
-            Component c = tabs.getComponentAt(i);
-            if (c instanceof FunctionPointsPanel fpp) return fpp;
-        }
-        return null;
     }
 }
