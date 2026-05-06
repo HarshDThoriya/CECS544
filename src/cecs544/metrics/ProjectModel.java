@@ -13,6 +13,10 @@ public class ProjectModel {
     public List<FPPaneEntry> fpPanes = new ArrayList<>();
     public List<UCPPaneEntry> ucpPanes = new ArrayList<>();
 
+    // Iteration 3: SMI (only one per project)
+    public boolean smiOpen = false;
+    public SMIState smiState = null;
+
     public static ProjectModel newEmpty(String projectName, String creatorName, String productName, String comments) {
         ProjectModel m = new ProjectModel();
         m.projectName = projectName;
@@ -22,6 +26,8 @@ public class ProjectModel {
         m.language = null;
         m.fpPanes = new ArrayList<>();
         m.ucpPanes = new ArrayList<>();
+        m.smiOpen = false;
+        m.smiState = null;
         return m;
     }
 
@@ -34,16 +40,16 @@ public class ProjectModel {
         root.put("language", language);
 
         List<Object> fpPaneMaps = new ArrayList<>();
-        for (FPPaneEntry p : fpPanes) {
-            fpPaneMaps.add(p.toMap());
-        }
+        for (FPPaneEntry p : fpPanes) fpPaneMaps.add(p.toMap());
         root.put("fpPanes", fpPaneMaps);
 
         List<Object> ucpPaneMaps = new ArrayList<>();
-        for (UCPPaneEntry p : ucpPanes) {
-            ucpPaneMaps.add(p.toMap());
-        }
+        for (UCPPaneEntry p : ucpPanes) ucpPaneMaps.add(p.toMap());
         root.put("ucpPanes", ucpPaneMaps);
+
+        // Iteration 3
+        root.put("smiOpen", smiOpen);
+        root.put("smiState", (smiState != null) ? smiState.toMap() : null);
 
         return JsonMini.stringify(root);
     }
@@ -67,6 +73,7 @@ public class ProjectModel {
         m.comments = (map.get("comments") instanceof String s) ? s : "";
         m.language = (map.get("language") instanceof String s) ? s : null;
 
+        // FP panes
         m.fpPanes = new ArrayList<>();
         Object fpPanesObj = map.get("fpPanes");
         if (fpPanesObj instanceof List<?> list) {
@@ -81,6 +88,7 @@ public class ProjectModel {
             }
         }
 
+        // UCP panes
         m.ucpPanes = new ArrayList<>();
         Object ucpPanesObj = map.get("ucpPanes");
         if (ucpPanesObj instanceof List<?> list) {
@@ -94,6 +102,7 @@ public class ProjectModel {
                 }
             }
         } else {
+            // legacy compatibility (if you had old save format)
             Object legacyUcpObj = map.get("ucpState");
             if (legacyUcpObj instanceof Map<?, ?> rawUcp) {
                 Map<String, Object> ucpMap = new LinkedHashMap<>();
@@ -107,9 +116,24 @@ public class ProjectModel {
             }
         }
 
+        // Iteration 3: SMI
+        m.smiOpen = (map.get("smiOpen") instanceof Boolean b) ? b : false;
+
+        Object smiObj = map.get("smiState");
+        if (smiObj instanceof Map<?, ?> rawSmi) {
+            Map<String, Object> smiMap = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : rawSmi.entrySet()) {
+                smiMap.put(String.valueOf(e.getKey()), e.getValue());
+            }
+            m.smiState = SMIState.fromMap(smiMap);
+        } else {
+            m.smiState = null;
+        }
+
         return m;
     }
 
+    // ---------------- FP Pane Entry ----------------
     public static class FPPaneEntry {
         public String tabName;
         public FPState state;
@@ -139,6 +163,7 @@ public class ProjectModel {
         }
     }
 
+    // ---------------- UCP Pane Entry ----------------
     public static class UCPPaneEntry {
         public String tabName;
         public UCPState state;
@@ -168,6 +193,7 @@ public class ProjectModel {
         }
     }
 
+    // ---------------- FP State ----------------
     public static class FPState {
         public String language;
         public int[] counts = new int[5];
@@ -206,6 +232,7 @@ public class ProjectModel {
         }
     }
 
+    // ---------------- UCP State ----------------
     public static class UCPState {
         public int[] actorCounts = new int[3];
         public int[] useCaseCounts = new int[3];
@@ -259,7 +286,6 @@ public class ProjectModel {
             s.uaw = (map.get("uaw") instanceof String str) ? str : "";
             s.uucw = (map.get("uucw") instanceof String str) ? str : "";
             s.totalCount = (map.get("totalCount") instanceof String str) ? str : "";
-            if (s.totalCount.isBlank() && map.get("uucp") instanceof String legacyCount) s.totalCount = legacyCount;
             s.tcf = (map.get("tcf") instanceof String str) ? str : "0.60";
             s.ecf = (map.get("ecf") instanceof String str) ? str : "1.40";
             s.totalUcp = (map.get("totalUcp") instanceof String str) ? str : "";
@@ -270,6 +296,64 @@ public class ProjectModel {
         }
     }
 
+    // ---------------- SMI State (Iteration 3) ----------------
+    public static class SMIRow {
+        public String smiText;
+        public Integer added;
+        public Integer changed;
+        public Integer deleted;
+        public int total;
+    }
+
+    public static class SMIState {
+        public int startingTotal;
+        public List<SMIRow> rows = new ArrayList<>();
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("startingTotal", startingTotal);
+
+            List<Object> rowMaps = new ArrayList<>();
+            for (SMIRow r : rows) {
+                Map<String, Object> rm = new LinkedHashMap<>();
+                rm.put("smiText", r.smiText);
+                rm.put("added", r.added);
+                rm.put("changed", r.changed);
+                rm.put("deleted", r.deleted);
+                rm.put("total", r.total);
+                rowMaps.add(rm);
+            }
+            m.put("rows", rowMaps);
+            return m;
+        }
+
+        public static SMIState fromMap(Map<String, Object> map) {
+            SMIState s = new SMIState();
+            s.startingTotal = (map.get("startingTotal") instanceof Number n) ? n.intValue() : 0;
+
+            Object rowsObj = map.get("rows");
+            if (rowsObj instanceof List<?> list) {
+                for (Object o : list) {
+                    if (o instanceof Map<?, ?> rawRow) {
+                        Map<String, Object> rm = new LinkedHashMap<>();
+                        for (Map.Entry<?, ?> e : rawRow.entrySet()) {
+                            rm.put(String.valueOf(e.getKey()), e.getValue());
+                        }
+                        SMIRow r = new SMIRow();
+                        r.smiText = (rm.get("smiText") instanceof String st) ? st : "";
+                        r.added = (rm.get("added") instanceof Number n) ? n.intValue() : null;
+                        r.changed = (rm.get("changed") instanceof Number n) ? n.intValue() : null;
+                        r.deleted = (rm.get("deleted") instanceof Number n) ? n.intValue() : null;
+                        r.total = (rm.get("total") instanceof Number n) ? n.intValue() : 0;
+                        s.rows.add(r);
+                    }
+                }
+            }
+            return s;
+        }
+    }
+
+    // -------- shared helpers --------
     private static List<Integer> toList(int[] arr) {
         List<Integer> out = new ArrayList<>();
         for (int v : arr) out.add(v);

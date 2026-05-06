@@ -2,8 +2,11 @@ package cecs544.metrics;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.text.DecimalFormat;
+import java.util.function.Consumer;
 
 public class UCPPanel extends JPanel {
 
@@ -24,6 +27,7 @@ public class UCPPanel extends JPanel {
     private static final int[] USE_CASE_WEIGHTS = {5, 10, 15};
 
     private final JFrame owner;
+    private final Consumer<ProjectModel.UCPState> onStateChanged;
 
     private final JTextField[] actorCountFields = new JTextField[3];
     private final JTextField[] actorWeightFields = new JTextField[3];
@@ -56,12 +60,34 @@ public class UCPPanel extends JPanel {
     private final DecimalFormat oneDec = new DecimalFormat("#,##0.0");
     private final DecimalFormat oneOrTwoDec = new DecimalFormat("#,##0.0#");
 
-    public UCPPanel(JFrame owner) {
+    public UCPPanel(JFrame owner, Consumer<ProjectModel.UCPState> onStateChanged) {
         this.owner = owner;
+        this.onStateChanged = onStateChanged;
+
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(14, 18, 14, 18));
         add(buildUi(), BorderLayout.CENTER);
         refreshAdjustmentFields();
+
+        // mark dirty on any direct edits too
+        attachDirtyListener(productivityField);
+        attachDirtyListener(locPerPmField);
+        attachDirtyListener(locPerUcpField);
+
+        for (JTextField f : actorCountFields) attachDirtyListener(f);
+        for (JTextField f : useCaseCountFields) attachDirtyListener(f);
+    }
+
+    private void attachDirtyListener(JTextField tf) {
+        tf.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent e) { fireStateChanged(); }
+            @Override public void removeUpdate(DocumentEvent e) { fireStateChanged(); }
+            @Override public void changedUpdate(DocumentEvent e) { fireStateChanged(); }
+        });
+    }
+
+    private void fireStateChanged() {
+        if (onStateChanged != null) onStateChanged.accept(exportState());
     }
 
     private JComponent buildUi() {
@@ -175,16 +201,28 @@ public class UCPPanel extends JPanel {
         g.anchor = GridBagConstraints.WEST;
 
         JButton computeCountButton = new JButton("Compute Count");
-        computeCountButton.addActionListener(e -> updateCountFields());
+        computeCountButton.addActionListener(e -> {
+            updateCountFields();
+            fireStateChanged();
+        });
 
         JButton technicalButton = new JButton("Technical Factors...");
-        technicalButton.addActionListener(e -> openTechnicalDialog());
+        technicalButton.addActionListener(e -> {
+            openTechnicalDialog();
+            fireStateChanged();
+        });
 
         JButton environmentalButton = new JButton("Environmental Factors...");
-        environmentalButton.addActionListener(e -> openEnvironmentalDialog());
+        environmentalButton.addActionListener(e -> {
+            openEnvironmentalDialog();
+            fireStateChanged();
+        });
 
         JButton calculateButton = new JButton("Calculate UCP");
-        calculateButton.addActionListener(e -> calculateResults());
+        calculateButton.addActionListener(e -> {
+            calculateResults();
+            fireStateChanged();
+        });
 
         int row = 0;
         g.gridx = 0; g.gridy = row; g.gridwidth = 2; p.add(computeCountButton, g);
